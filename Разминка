@@ -1,0 +1,27 @@
+import java.util.Scanner;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scan = new Scanner(System.in);
+
+        System.out.print("Введите первое число n: ");
+        int n = scan.nextInt();
+
+        System.out.print("Введите второе число m: ");
+        int m = scan.nextInt();
+
+        int nn = Math.abs(n);
+        int mm = Math.abs(m);
+
+        int u = 0;
+        for (int i = 0; i < nn; i++) {
+            u += mm;
+        }
+
+        if ((n < 0 && m > 0) || (n > 0 && m < 0)) {
+            u = -u;
+        }
+
+        System.out.println(n + " * " + m + " = " + u);
+    }
+}
