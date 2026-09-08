@@ -2,26 +2,58 @@ import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
+        int n = EnteringNumbers("Введите первое число n: ");
+        int m = EnteringNumbers("Введите второе число m: ");
+
+        int result = Multiplication(n, m);
+
+        Print(n, m, result);
+    }
+
+    public static int EnteringNumbers(String message) {
         Scanner scan = new Scanner(System.in);
+        System.out.print(message);
+        return scan.nextInt();
+    }
 
-        System.out.print("Введите первое число n: ");
-        int n = scan.nextInt();
+    public static int Multiplication(int a, int b) {
+        int absA = Module(a);
+        int absB = Module(b);
 
-        System.out.print("Введите второе число m: ");
-        int m = scan.nextInt();
+        int sum = Addition(absA, absB);
 
-        int nn = Math.abs(n);
-        int mm = Math.abs(m);
-
-        int u = 0;
-        for (int i = 0; i < nn; i++) {
-            u += mm;
+        if (Denial(a, b)) {
+            sum = -sum;
         }
 
-        if ((n < 0 && m > 0) || (n > 0 && m < 0)) {
-            u = -u;
-        }
+        return sum;
+    }
 
-        System.out.println(n + " * " + m + " = " + u);
+    public static int Module(int num) {
+        if (num < 0) {
+            return -num;
+        } else {
+            return num;
+        }
+    }
+
+    public static int Addition(int count, int value) {
+        int result = 0;
+        for (int i = 0; i < count; i++) {
+            result += value;
+        }
+        return result;
+    }
+
+    public static boolean Denial(int a, int b) {
+        if ((a < 0 && b > 0) || (a > 0 && b < 0)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public static void Print(int n, int m, int result) {
+        System.out.println(n + " * " + m + " = " + result);
     }
 }
