@@ -1,0 +1,73 @@
+import java.io.*;
+
+public class Main {
+
+    public static void main(String[] args) throws IOException, InterruptedException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+
+        for (int i = 0; i < 3; i++) {
+            System.out.print("Введите имя процесса (например, notepad, calc, mspaint): ");
+            String processName = reader.readLine();
+
+            Process process = startProcess(processName);
+            if (process == null) {
+                continue;
+            }
+
+            printProcessInfo(process, processName);
+
+            System.out.print("Завершить процесс? (да/нет): ");
+            String answer = reader.readLine();
+
+            if (answer != null && answer.equalsIgnoreCase("да")) {
+                stopProcess(process);
+            } else {
+                System.out.println("Процесс оставлен работать.");
+            }
+
+            System.out.println();
+        }
+
+        reader.close();
+    }
+
+    public static Process startProcess(String name) throws IOException {
+        ProcessBuilder procBuilder = new ProcessBuilder(name);
+        procBuilder.redirectErrorStream(true);
+        Process process = procBuilder.start();
+        System.out.println("Процесс " + name + " запущен.");
+        return process;
+    }
+
+    public static void printProcessInfo(Process process, String name) {
+        System.out.println("   ИНФОРМАЦИЯ О ПРОЦЕССЕ   ");
+        System.out.println("Имя процесса: " + name);
+
+        InputStream stdout = process.getInputStream();
+        InputStreamReader isrStdout = new InputStreamReader(stdout);
+        BufferedReader brStdout = new BufferedReader(isrStdout);
+
+        Thread outputThread = new Thread(() -> {
+            try {
+                String line;
+                while ((line = brStdout.readLine()) != null) {
+
+                    System.out.println(line);
+                }
+            } catch (IOException ignored) {
+                // Поток закрыт — нормально
+            }
+        });
+        outputThread.setDaemon(true);
+        outputThread.start();
+
+        System.out.println("Живой: " + process.isAlive());
+        System.out.println();
+    }
+
+    public static void stopProcess(Process process) throws InterruptedException {
+        process.destroy();
+        int exitVal = process.waitFor();
+        System.out.println("Процесс завершён. Код выхода: " + exitVal);
+    }
+}
