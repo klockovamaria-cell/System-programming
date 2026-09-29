@@ -1,0 +1,44 @@
+public class Main {
+    public static void main(String[] args) {
+        // Исходный массив
+        int[] array = {2, 1, 2, 3, 4, 2, 1, 2, 2};
+
+        // candidate — возможный мажоритарный элемент
+        int candidate = 0;
+
+        // count — счётчик
+        int count = 0;
+
+        // Первый проход по массиву
+        for (int number : array) {
+            // Если счётчик стал равен нулю, выбираем текущий элемент новым кандидатом
+            if (count == 0) {
+                candidate = number;
+            }
+            // Если number равен candidate, увеличиваем счётчик
+            // Если не равен — уменьшаем счётчик
+            if (number == candidate) {
+                count++;
+            } else {
+                count--;
+            }
+        }
+        // Сбрасываем счётчик
+        count = 0;
+        // Второй проход по массиву
+        for (int number : array) {
+            // Считаем, сколько раз встретился candidate
+            if (number == candidate) {
+                count++;
+            }
+        }
+        // Проверяем, встречается ли candidate больше половины размера массива
+        if (count > array.length / 2) {
+            // Если да, выводим мажоритарный элемент
+            System.out.println(candidate);
+        } else {
+            // Если нет, значит мажоритарного элемента нет
+            System.out.println("Мажоритарного элемента нет");
+        }
+    }
+}
