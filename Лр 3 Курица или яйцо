@@ -1,0 +1,76 @@
+public class Main {
+    // Объект, который используется для синхронизации потоков
+    private static final Object lock = new Object();
+    // Если true — первым говорит курица
+    // Если false — первым говорит яйцо
+    private static boolean chickenTurn = true;
+    // Здесь хранится последнее сказанное слово
+    private static String lastWord = "";
+    public static void main(String[] args) throws InterruptedException {
+        // Создаём поток, который будет выводить слово "Курица"
+        Thread chickenThread = new Thread(() -> {
+            // Курица должна сказать слово 5 раз
+            for (int i = 0; i < 5; i++) {
+                // Блокируем общий объект, чтобы потоки не мешали друг другу
+                synchronized (lock) {
+                    // Пока не наступила очередь курицы, поток ждёт
+                    while (!chickenTurn) {
+                        try {
+                            lock.wait();
+                        } catch (InterruptedException e) {
+                            // Если поток прервали, возвращаем ему статус прерывания
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    // Выводим слово курицы
+                    System.out.println("Курица");
+                    // Запоминаем последнее сказанное слово
+                    lastWord = "Курица";
+                    // Теперь очередь яйца
+                    chickenTurn = false;
+                    // Сообщаем другому потоку, что он может продолжать работу
+                    lock.notifyAll();
+                }
+            }
+        });
+        // Создаём поток, который будет выводить слово "Яйцо"
+        Thread eggThread = new Thread(() -> {
+            // Яйцо должно сказать слово 5 раз
+            for (int i = 0; i < 5; i++) {
+                // Блокируем общий объект
+                synchronized (lock) {
+                    // Пока очередь курицы, поток яйца ждёт
+                    while (chickenTurn) {
+                        try {
+                            lock.wait();
+                        } catch (InterruptedException e) {
+                            // Возвращаем статус прерывания потока
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    // Выводим слово яйца
+                    System.out.println("Яйцо");
+                    // Запоминаем последнее сказанное слово
+                    lastWord = "Яйцо";
+                    // Теперь очередь снова курицы
+                    chickenTurn = true;
+                    // Разрешаем другому потоку продолжить работу
+                    lock.notifyAll();
+                }
+            }
+        });
+        // Запускаем поток курицы
+        chickenThread.start();
+        // Запускаем поток яйца
+        eggThread.start();
+        // Ждём, пока поток курицы полностью завершится
+        chickenThread.join();
+        // Ждём, пока поток яйца полностью завершится
+        eggThread.join();
+        // Метод isAlive() проверяет, работает ли поток в данный момент
+        if (!chickenThread.isAlive() && !eggThread.isAlive()) {
+            // Если оба потока завершились, выводим результат спора
+            System.out.println("Спор окончен. Победила " + lastWord);
+        }
+    }
+}
