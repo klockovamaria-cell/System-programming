@@ -1,0 +1,58 @@
+private static String lastWord = "";
+
+    public static void main(String[] args) throws InterruptedException {
+
+        // Поток курицы
+        Thread chickenThread = new Thread(() -> {
+
+            // Курица говорит слово 5 раз
+            for (int i = 0; i < 5; i++) {
+                System.out.println("Курица");
+
+                // Записываем последнее слово
+                lastWord = "Курица";
+
+                // Небольшая пауза, чтобы потоки могли чередоваться
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        });
+
+        // Поток яйца
+        Thread eggThread = new Thread(() -> {
+
+            // Яйцо говорит слово 5 раз
+            for (int i = 0; i < 5; i++) {
+                System.out.println("Яйцо");
+
+                // Записываем последнее слово
+                lastWord = "Яйцо";
+
+                // Небольшая пауза
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        });
+
+        // Запускаем потоки
+        chickenThread.start();
+        eggThread.start();
+
+        // Ожидаем завершения обоих потоков
+        chickenThread.join();
+        eggThread.join();
+
+        // Выводим результат
+        System.out.println();
+        System.out.println("Спор окончен.");
+        System.out.println("Последним сказало: " + lastWord);
+    }
+}
