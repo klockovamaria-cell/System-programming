@@ -1,0 +1,72 @@
+class Counter{
+    private volatile long counter = 0;
+    long getCounter() { return counter; }
+    void increment() { counter++;  }// не атомарная операция
+}
+public static class InterferenceExample {
+    // Цель, до которой должны дорасти счетчики (100 миллионов)
+    private static final int HUNDRED_MILLION = 100_000_000;
+    // Специальная переменная из библиотеки Java.
+    // Она умеет прибавлять единицу так, что потоки никогда не мешают друг другу.
+    // Используем её только как "светофор", чтобы вовремя остановить программу.
+    private final AtomicInteger stopSignal = new AtomicInteger();
+    // Обычная переменная. Когда два потока прибавляют к ней 1 одновременно,
+    // они толкаются и теряют часть прибавок
+    private int lostCounter = 0;
+    // Проверка: достигли ли мы 100 миллионов?
+    // Если да — возвращаем true, и потоки остановятся.
+    boolean stop() {
+        return stopSignal.incrementAndGet() > HUNDRED_MILLION;
+    }
+    // Метод, который прибавляет 1 к счетчику.
+    void incrementLostCounter() {
+        lostCounter++;
+    }
+    // Отдаем значение счетчика наружу для вывода на экран
+    int getLostCounter() {
+        return lostCounter;
+    }
+    // Главная рабочая функция
+    void example() throws InterruptedException {
+        // Создаем два потока, которые будут работать с одними и теми же данными
+        InterferenceThread thread1 = new InterferenceThread(this);
+        InterferenceThread thread2 = new InterferenceThread(this);
+        // Засекаем время, чтобы увидеть, как быстро работают потоки
+        long startTime = System.currentTimeMillis();
+        // Запускаем потоки работать одновременно
+        thread1.start();
+        thread2.start();
+        // join() говорит основной программе: "Подожди, пока оба потока не закончат свою работу".
+        thread1.join();
+        thread2.join();
+        long endTime = System.currentTimeMillis();
+        // Выводим результат.
+        // "Ожидание" — это то, сколько раз сработал надежный стоп-сигнал (ровно 100 млн).
+        // "Результат" — это сколько раз удалось прибавить к плохому счетчику (всегда меньше).
+        System.out.println("Ожидание (AtomicInteger стоп-сигнал): " + HUNDRED_MILLION);
+        System.out.println("Потрачено времени: " + (endTime - startTime) + " мс");
+        System.out.println("Результат (счетчик с потерями): " + getLostCounter());
+        System.out.println("Потеряно инкрементов: " + (HUNDRED_MILLION - getLostCounter()));
+    }
+}
+// Класс отдельного потока. Он наследует возможности от стандартного класса Thread.
+public static class InterferenceThread extends Thread {
+    // Ссылка на главный класс, чтобы поток мог смотреть на счетчики
+    private final InterferenceExample checker;
+    // Конструктор — инструкция для создания потока, в неё передаем ссылку на данные
+    InterferenceThread(InterferenceExample checker) {
+        this.checker = checker;
+    }
+    // run() — это то, что поток делает после вызова start()
+    @Override
+    public void run() {
+        // Бесконечный цикл, который прервется только когда checker.stop() вернет true
+        while (!checker.stop()) {
+            checker.incrementLostCounter(); //прибавляем 1
+        }
+    }
+}
+public static void main(String[] args) throws InterruptedException {
+    // Создаем экземпляр главного класса и запускаем его логику
+    new InterferenceExample().example();
+}
