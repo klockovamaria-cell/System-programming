@@ -1,0 +1,37 @@
+import java.util.Scanner;
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Введите ваш бюджет (деньги): ");
+        long budget = scanner.nextLong();
+        System.out.print("Введите цену одной шоколадки: ");
+        int price = scanner.nextInt(); // Цена
+        System.out.print("Введите количество (за сколько купленных дают одну бесплатно): ");
+        int k = scanner.nextInt();   // Количество
+        // Сколько шоколадок купили изначально
+        long totalBoughtOnMoney = budget / price;
+        // Начальное состояние
+        long totalEaten = totalBoughtOnMoney;
+        long wrappers = totalBoughtOnMoney;
+        long boughtThisRound = totalBoughtOnMoney;
+        while (true) { // Используем простой цикл без условия
+            // Акция "1+1" работает только от того, что купили в текущем раунде
+            long fromPromo = boughtThisRound / k;
+            // За фантики нужно собирать их по k штук
+            long chocolatesFromWrappers = wrappers / k;
+            long remainingWrappers = wrappers % k;
+            // Итоговые новые шоколадки
+            long newChocolates = chocolatesFromWrappers + fromPromo;
+            if (newChocolates == 0) {
+                break; // Если больше нечего получать — выходим из цикла
+            }
+            // Прибавляем к общему количеству съеденных
+            totalEaten += newChocolates;
+            // Теперь у нас есть новые фантики плюс остатки со старого обмена
+            wrappers = newChocolates + remainingWrappers;
+            boughtThisRound = newChocolates;
+        }
+        System.out.println("Итого можно съесть шоколадок: " + totalEaten);
+        scanner.close();
+    }
+}
