@@ -1,69 +1,66 @@
-// Класс для сравнения (не используем в работе)
-// Он показывает, что volatile не спасает от потери данных.
-class Counter{
-    private volatile long counter = 0; // Гарантирует только видимость данных
+// Класс для примера (в работе не участвует)
+class Counter {
+    private volatile long counter = 0;
     long getCounter() {
         return counter;
     }
     void increment() {
-        counter++;
+        counter++; // Здесь будут потери данных!
     }
 }
-// Главный класс, где живет вся логика
-public static class InterferenceExample {
-    private static final int HUNDRED_MILLION = 100000000; // Наша цель
-    // Светофор для остановки потоков
-    private final AtomicInteger stopSignal = new AtomicInteger();
-    // Главный счетчик. Он потокобезопасный — данные не теряются
-    private final AtomicInteger safeCounter = new AtomicInteger();
-    // Проверяем, пора ли останавливаться
-    boolean stop(){
-        return stopSignal.incrementAndGet() > HUNDRED_MILLION;
+public class Main {
+    private static final int HUNDRED_MILLION = 100000000; // Цель: 100000000
+    private int stopSignal = 0; // Счетчик для остановки потоков
+    private int safeCounter = 0; // Главный счетчик
+    private final Object lock = new Object(); // Замок для синхронизации
+    // Проверка: достигли ли мы 100000000?
+    boolean stop() {
+        synchronized (lock) { // Берем замок
+            return ++stopSignal > HUNDRED_MILLION;
+        } // Отдаем замок
     }
-    // Прибавляем 1 к главному счетчику. Операция атомарная
+    // Безопасное прибавление +1
     void incrementSafeCounter() {
-        safeCounter.incrementAndGet();
+        synchronized (lock) { // Берем замок
+            safeCounter++;
+        } // Отдаем замок
     }
-    // Просто отдаем число для вывода на экран
+    // Безопасное чтение счетчика
     int getSafeCounter() {
-        return safeCounter.get();
+        synchronized (lock) { // Берем замок
+            return safeCounter;
+        } // Отдаем замок
     }
-    // Основная программа
     void example() throws InterruptedException {
         // Создаем два потока
         InterferenceThread thread1 = new InterferenceThread(this);
         InterferenceThread thread2 = new InterferenceThread(this);
-        long startTime = System.currentTimeMillis(); // Засекаем старт
-        thread1.start(); // Запускаем первый поток
-        thread2.start(); // Запускаем второй поток
-        // Ждем, пока оба потока закончат работу
-        thread1.join();
-        thread2.join();
-        long endTime = System.currentTimeMillis(); // Засекаем финиш
+        long startTime = System.currentTimeMillis(); // Засекаем время
+        thread1.start(); // Запускаем поток 1
+        thread2.start(); // Запускаем поток 2
+        thread1.join(); // Ждем поток 1
+        thread2.join(); // Ждем поток 2
+        long endTime = System.currentTimeMillis(); // Засекаем время
         System.out.println("Ожидание (цель): " + HUNDRED_MILLION);
         System.out.println("Потрачено времени: " + (endTime - startTime) + " мс");
-        // Так как счетчик атомарный, потерь нет
         System.out.println("Результат (счетчик без потерь): " + getSafeCounter());
         System.out.println("Потеряно инкрементов: " + (HUNDRED_MILLION - getSafeCounter()));
     }
-}
-// Описание одного потока
-public static class InterferenceThread extends Thread {
-    private final InterferenceExample checker; // Ссылка на данные
-    InterferenceThread(InterferenceExample checker) {
-        this.checker = checker;
-    }
-    // То, что делает поток после запуска
-    @Override
-    public void run() {
-        // Крутимся в цикле, пока светофор не скажет стоп
-        while (!checker.stop()) {
-            // Прибавляем единицу к общему счетчику
-            checker.incrementSafeCounter();
+    // Сам поток (работник)
+    public static class InterferenceThread extends Thread {
+        private final Main checker;
+        InterferenceThread(Main checker) {
+            this.checker = checker;
+        }
+        @Override
+        public void run() {
+            // Крутимся, пока не наберем 100 млн
+            while (!checker.stop()) {
+                checker.incrementSafeCounter();
+            }
         }
     }
-}
-// Точка входа
-static void main(String[] args) throws InterruptedException {
-    new InterferenceExample().example();
+    public static void main(String[] args) throws InterruptedException {
+        new Main().example(); // Запуск программы
+    }
 }
