@@ -1,0 +1,55 @@
+// InsufficientFundsException — собственное исключение.
+// Оно возникает, если денег на счёте недостаточно для выполнения операции.
+// Создание своего класса исключения
+class InsufficientFundsException extends Exception {
+    // Создание конструктора для сообщения об ошибке
+    public InsufficientFundsException(String message) {
+        // Передаётся сообщение классу Exception
+        super(message);
+    }
+}
+// Главный класс программы
+public class Main {
+    // Метод для снятия денег со счёта
+    public static void withdraw(double balance, double amount)
+            throws InsufficientFundsException {
+        // Проверяем, что сумма больше нуля
+        if (amount <= 0) {
+            // Выбрасываем исключение
+            throw new InsufficientFundsException(
+                    "Сумма должна быть больше нуля."
+            );
+        }
+        // Проверяем, хватает ли денег
+        if (amount > balance) {
+            // Выбрасываем исключение, если сумма больше баланса
+            throw new InsufficientFundsException(
+                    "Недостаточно средств на счёте."
+            );
+        }
+        // Выводим сообщение об успешной операции
+        System.out.println("Операция выполнена.");
+        // Вычисляем и выводим остаток денег
+        System.out.println("Остаток: " + (balance - amount));
+    }
+    // Главный метод программы
+    public static void main(String[] args) {
+        // Указываем баланс счёта
+        double balance = 1000;
+        // Указываем сумму для снятия
+        double amount = 1500;
+        // Начинаем проверять код на ошибки
+        try {
+            // Вызываем метод снятия денег
+            withdraw(balance, amount);
+            // Перехватываем наше исключение
+        } catch (InsufficientFundsException e) {
+            // Выводим сообщение об ошибке
+            System.out.println("Ошибка: " + e.getMessage());
+            // Этот блок выполняется всегда
+        } finally {
+            // Выводим сообщение о завершении операции
+            System.out.println("Операция завершена.");
+        }
+    }
+}
