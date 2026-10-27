@@ -1,1 +1,89 @@
-
+// Подключаем инструменты для работы с ошибками (например, если файла нет)
+import java.io.IOException;
+// Подключаем инструменты для работы с файлами (чтение, запись, копирование)
+import java.nio.file.Files;
+// Подключаем инструмент, который превращает текст "file.txt" в понятный программе путь
+import java.nio.file.Paths;
+// Подключаем команду, которая разрешает программе заменять старые файлы новыми
+import java.nio.file.StandardCopyOption;
+// Объявляем главный контейнер для нашей программы
+public class Main {
+    // Создаем неизменяемые ячейки памяти для имен файлов (как ярлыки)
+    static final String from1 = "file1.txt"; // Имя первого исходного файла
+    static final String to1 = "copy1.txt";  // Куда сохраним копию первого файла
+    static final String from2 = "file2.txt"; // Имя второго исходного файла
+    static final String to2 = "copy2.txt"; // Куда сохраним копию второго файла
+    // Объявляем метод, который умеет создавать файл с текстом
+    static void createfile(String name) throws IOException { // Говорим: "внутри могут быть ошибки"
+        StringBuilder text = new StringBuilder(); // Для сбора строк
+        // Запускаем счетчик от 0 до 199999 (всего 200 тысяч раз)
+        for (int i = 0; i < 200000; i++) {
+            // Записываем в text текст и номер строки, а в конце переходим на новую строку
+            text.append("Строка номер ").append(i).append("\n");
+        }
+        // Берем всё из text, превращаем в байты и сохраняем на диск по имени name
+        Files.write(Paths.get(name), text.toString().getBytes());
+    }
+    // Объявляем коробку, которая умеет копировать один файл в другой
+    static void copyfile(String from, String to) throws IOException { // Здесь тоже могут быть ошибки
+        // Читаем файл from и записываем его содержимое в файл to
+        Files.copy(Paths.get(from), Paths.get(to), StandardCopyOption.REPLACE_EXISTING);
+    }
+    // Создаем класс для отдельного потока
+    static class copythread extends Thread {
+        String from; // Поле: откуда копировать этому потоку
+        String to;   // Поле: куда копировать этому потоку
+        // Конструктор: как выдать потоку его задачу при создании
+        copythread(String from, String to) {
+            this.from = from; // Сохраняем имя источника
+            this.to = to;     // Сохраняем имя цели
+        }
+        public void run() {
+            try {
+                // Пытаемся выполнить копирование
+                copyfile(from, to);
+            } catch (IOException e) {
+                // Если копирование сломалось, печатаем причину в консоль
+                System.out.println("Ошибка: " + e.getMessage());
+            }
+        }
+    }
+    public static void main(String[] args) throws InterruptedException {
+        // Пытаемся создать исходные файлы для теста
+        try {
+            createfile(from1); // Создаем первый большой файл
+            createfile(from2); // Создаем второй большой файл
+        } catch (IOException e) {
+            // Если создать не вышло (например, нет места на диске), пишем об этом
+            System.out.println("Не удалось создать файл: " + e.getMessage());
+            return; // Выключаем программу, дальше копировать нечего
+        }
+        // 1. Тест: копируем файлы по очереди
+        System.out.println("Последовательно");
+        long start = System.nanoTime(); // Запоминаем точное время старта (как секундомер)
+        try {
+            copyfile(from1, to1); // Сначала копируем первый файл
+            copyfile(from2, to2); // Затем копируем второй файл
+        } catch (IOException e) {
+            System.out.println("Ошибка копирования: " + e.getMessage());
+        }
+        // Считаем: (Текущее время - Время старта) и переводим в микросекунды
+        long sequential = (System.nanoTime() - start) / 1000;
+        System.out.println("Готово за " + sequential + " мкс"); // Печатаем результат
+        // 2. Тест: копируем файлы одновременно
+        System.out.println("Параллельно");
+        start = System.nanoTime(); // Сбрасываем секундомер
+        copythread t1 = new copythread(from1, to1); // Создаем первый поток
+        copythread t2 = new copythread(from2, to2); // Создаем второй поток
+        t1.start(); // Запускаем первый
+        t2.start(); // Запускаем второй
+        t1.join(); // Ждём, пока первый закончит
+        t2.join(); // Ждём, пока второй закончит
+        long parallel = (System.nanoTime() - start) / 1000; // Считаем время
+        System.out.println("Готово за " + parallel + " мкс"); // Печатаем результат
+        // Выводим итоговое сравнение на экран
+        System.out.println("Итог");
+        System.out.println("Последовательно: " + sequential + " мкс");
+        System.out.println("Параллельно: " + parallel + " мкс");
+    }
+}
