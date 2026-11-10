@@ -1,88 +1,62 @@
-import java.io.IOException;
-import java.io.InputStream; // Для чтения данных из интернета
-import java.io.OutputStream; // Для записи данных на диск
-import java.net.HttpURLConnection; // Класс для работы с HTTP-соединением
-import java.net.MalformedURLException; // Ошибка при неверном URL
-import java.net.URL; // Объект для хранения ссылки
-import java.nio.file.Files; // Работа с файлами (создание/запись)
+import java.io.*;
+import java.net.URL; // Для работы с интернет-адресами (URL)
+import java.nio.file.Files; // Работа с файлами на диске
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption; // Опции открытия файла
 import java.util.Scanner; // Ввод данных от пользователя
 public class Main {
-    // Размер буфера для скачивания: чем больше — тем быстрее загрузка
-    private static final int BUFFER_SIZE = 8192;
-    // Таймаут подключения к серверу в миллисекундах (10 сек.)
-    private static final int CONNECT_TIMEOUT = 10_000;
-    // Таймаут ожидания ответа сервера (30 сек.)
-    private static final int READ_TIMEOUT = 30_000;
-    public static void main(String[] args) {
-        try (Scanner scanner = new Scanner(System.in)) { // Создаем сканер для ввода текста
-            System.out.print("Введите прямую ссылку на MP3-файл: ");
-            String url = scanner.nextLine().trim(); // Получаем ссылку и убираем пробелы по краям
-            System.out.print("Введите имя файла для сохранения (например, track.mp3): ");
-            String fileName = scanner.nextLine().trim(); // Получаем имя файла
-            if (url.isEmpty() || fileName.isEmpty()) { // Проверяем, что поля не пустые
-                System.out.println("Ошибка: Ссылка и имя файла не могут быть пустыми.");
-                return; // Завершаем программу, если данные некорректны
-            }
-            try {
-                download(url, fileName); // Вызываем метод загрузки
-                System.out.println();
-                System.out.println("Успех! Файл сохранен в папку с программой под именем: " + fileName);
-            } catch (IllegalArgumentException e) { // Если ссылка была неправильной
-                System.err.println("Ошибка ввода: " + e.getMessage());
-            } catch (IOException e) { // Если проблема со связью или диском
-                System.err.println("Ошибка ввода-вывода: " + e.getMessage());
-            } catch (Exception e) { // Любая другая ошибка
-                System.err.println("Произошла непредвиденная ошибка: " + e.getMessage());
-            }
-
+    private static final String SONG_1_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"; // Ссылка на первую песню
+    private static final String SONG_2_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"; // На вторую песню
+    private static final String SONG_3_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3"; // На третью песню
+    private static final String SONG_4_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3"; // На четвёртую песню
+    private static final Path FOLDER_PATH = Path.of("music"); // Папка, куда будут сохраняться файлы
+    public static void main(String[] args) throws IOException { // Точка входа программы
+        Scanner scanner = new Scanner(System.in); // Создаём объект для чтения ввода пользователя
+        System.out.println("Выберите один из вариантов:"); // Меню выбора треков
+        System.out.println("1 - Первая песня");
+        System.out.println("2 - Вторая песня");
+        System.out.println("3 - Третья песня");
+        System.out.println("4 - Четвёртая песня");
+        System.out.println("5 - Ввести свою прямую ссылку");
+        int choice = scanner.nextInt(); // Читаем выбор пользователя
+        scanner.nextLine(); // Убираем символ переноса строки после nextInt()
+        switch (choice) { // Обрабатываем выбор
+            case 1 -> download(SONG_1_URL, "song1.mp3");
+            case 2 -> download(SONG_2_URL, "song2.mp3");
+            case 3 -> download(SONG_3_URL, "song3.mp3");
+            case 4 -> download(SONG_4_URL, "song4.mp3");
+            case 5 -> manualDownload(scanner);
+            default -> System.err.println("Ошибка: неверный выбор.");
         }
     }
-
-    //Скачивает файл по прямой ссылке
-    private static void download(String fileUrl, String fileName) throws IOException {
-        URL url = validateUrl(fileUrl); // Превращаем текстовую строку в объект URL
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection(); // Открываем соединение
-        // Говорим серверу, что мы обычный браузер (иначе он может нас заблокировать)
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Lab Work)");
-        // Устанавливаем таймауты, чтобы программа не зависала вечно
-        connection.setConnectTimeout(CONNECT_TIMEOUT);
-        connection.setReadTimeout(READ_TIMEOUT);
-        connection.connect(); // Подключаемся к серверу
-        int status = connection.getResponseCode(); // Узнаем ответ сервера
-        if (status != HttpURLConnection.HTTP_OK) {
-            connection.disconnect();
-            throw new IOException("Не удалось скачать файл. HTTP-код: " + status);
-        }
-        // Блок try-with-resources автоматически закроет потоки после завершения
+    //Универсальный метод скачивания файла по прямой ссылке
+    private static void download(String urlStr, String fileName) throws IOException {
+        Files.createDirectories(FOLDER_PATH); // Проверяем наличие папки music и создаём её, если нет
+        URL url = new URL(urlStr);
         try (
-                InputStream in = connection.getInputStream(); // Поток для чтения данных из сети
-                OutputStream out = Files.newOutputStream(
-                        Path.of(fileName), // Указываем путь к файлу
-                        StandardOpenOption.CREATE, // Создать файл, если его нет
-                        StandardOpenOption.TRUNCATE_EXISTING) // Перезаписать существующий файл
+                InputStream in = url.openStream(); // Поток для чтения данных из интернета
+                OutputStream out = Files.newOutputStream(FOLDER_PATH.resolve(fileName)) // Поток для записи в файл
         ) {
-            byte[] buffer = new byte[BUFFER_SIZE]; // Буфер для быстрого чтения
-            int bytesRead; // Сколько байт прочитано за раз
-            long totalBytes = 0; // Общее количество скачанных байт
+            byte[] buffer = new byte[8192]; // Буфер для быстрого чтения
+            int bytesRead;
             while ((bytesRead = in.read(buffer)) != -1) { // Читаем порциями до конца файла
                 out.write(buffer, 0, bytesRead); // Записываем данные в файл
-                totalBytes += bytesRead;
-                System.out.print("\rЗагружено: " + (totalBytes / 1024) + " КБ"); // Показываем прогресс
             }
-        } finally {
-            connection.disconnect(); // Обязательно закрываем соединение
+            System.out.println("Файл успешно сохранён в папке music: " + fileName);
+        } catch (IOException e) {
+            System.err.println("Ошибка при загрузке: " + e.getMessage()); // Сообщение об ошибке
         }
     }
 
-    //Проверяет, является ли строка валидной ссылкой
-    private static URL validateUrl(String fileUrl) {
-        try {
-            return new URL(fileUrl); // Пробуем создать объект URL
-        } catch (MalformedURLException e) {
-            // Если ссылка написана неправильно, бросаем понятную ошибку
-            throw new IllegalArgumentException("Введена некорректная ссылка: " + fileUrl, e);
+    // Скачивание по ссылке пользователя
+    private static void manualDownload(Scanner scanner) throws IOException {
+        System.out.print("Введите прямую ссылку на музыкальный файл (.mp3): ");
+        String url = scanner.nextLine().trim(); // Получили ссылку
+        if (url.isEmpty()) { // Защита от пустой ссылки
+            System.err.println("Ссылка не может быть пустой!");
+            return;
         }
+        // Берём имя файла прямо из ссылки (всё, что идёт после последнего слэша).
+        String fileName = url.substring(url.lastIndexOf('/') + 1);
+        download(url, fileName); // Запускаем основной метод скачивания
     }
 }
