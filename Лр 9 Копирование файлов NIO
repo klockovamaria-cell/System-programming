@@ -1,0 +1,92 @@
+import java.nio.ByteBuffer; // Подключаем буфер для данных
+import java.nio.channels.AsynchronousFileChannel; // Подключаем асинхронный канал для файлов
+import java.nio.channels.FileChannel; // Подключаем обычный канал для файлов
+import java.nio.file.Files; // Подключаем инструменты для работы с файлами
+import java.nio.file.Path; // Подключаем тип пути к файлу
+import java.nio.file.Paths; // Подключаем создание путей к файлам
+import java.nio.file.StandardOpenOption; // Подключаем настройки открытия файлов
+import java.util.concurrent.Future; // Подключаем получение результата будущей операции
+public class Main { // Создаём главный класс программы
+    // Создаёт текстовый файл с нужным количеством строк
+    static void createFile(Path path, int lines) throws Exception {
+        StringBuilder text = new StringBuilder(); // Создаём место для текста
+        for (int i = 1; i <= lines; i++) { // Повторяем действие для каждой строки
+            text.append("Строка номер ").append(i).append('\n'); // Добавляем строку и переход на новую
+        }
+        Files.write(path, text.toString().getBytes("UTF-8")); // Записываем текст в файл
+    }
+    // Синхронно копирует один файл через каналы и буфер
+    static void copySync(Path source, Path destination) throws Exception {
+        try (FileChannel input = FileChannel.open( // Открываем исходный файл
+                source, // Указываем исходный файл
+                StandardOpenOption.READ); // Открываем его для чтения
+             FileChannel output = FileChannel.open( // Открываем целевой файл
+                     destination, // Указываем целевой файл
+                     StandardOpenOption.WRITE, // Разрешаем запись
+                     StandardOpenOption.CREATE, // Создаём файл, если его нет
+                     StandardOpenOption.TRUNCATE_EXISTING)) { // Очищаем старое содержимое
+            ByteBuffer buffer = ByteBuffer.allocate(8192); // Создаём буфер размером 8 КБ
+            while (input.read(buffer) != -1) { // Читаем файл в буфер, пока он не закончится
+                buffer.flip(); // Переключаем буфер на чтение данных
+                output.write(buffer); // Записываем данные в целевой файл
+                buffer.clear(); // Очищаем буфер для следующей порции
+            }
+        }
+    }
+    // Асинхронно копирует два файла
+    static void copyAsync(
+            Path source1, Path destination1, // Указываем первый исходный файл и его копию
+            Path source2, Path destination2 // Указываем второй исходный файл и его копию
+    ) throws Exception {
+        try (AsynchronousFileChannel input1 = AsynchronousFileChannel.open( // Открываем первый исходный файл
+                source1, StandardOpenOption.READ); // Разрешаем чтение
+             AsynchronousFileChannel input2 = AsynchronousFileChannel.open( // Открываем второй исходный файл
+                     source2, StandardOpenOption.READ); // Разрешаем чтение
+             AsynchronousFileChannel output1 = AsynchronousFileChannel.open( // Открываем первую копию
+                     destination1, // Указываем путь первой копии
+                     StandardOpenOption.WRITE, // Разрешаем запись
+                     StandardOpenOption.CREATE, // Создаём файл, если его нет
+                     StandardOpenOption.TRUNCATE_EXISTING); // Очищаем старое содержимое
+             AsynchronousFileChannel output2 = AsynchronousFileChannel.open( // Открываем вторую копию
+                     destination2, // Указываем путь второй копии
+                     StandardOpenOption.WRITE, // Разрешаем запись
+                     StandardOpenOption.CREATE, // Создаём файл, если его нет
+                     StandardOpenOption.TRUNCATE_EXISTING)) { // Очищаем старое содержимое
+            long size1 = input1.size(); // Узнаём размер первого файла
+            long size2 = input2.size(); // Узнаём размер второго файла
+            if (size1 > Integer.MAX_VALUE || size2 > Integer.MAX_VALUE) { // Проверяем, помещаются ли размеры в буфер
+                throw new Exception("Файл слишком большой для буфера этого примера"); // Сообщаем, что файл слишком большой
+            }
+            ByteBuffer buffer1 = ByteBuffer.allocate((int) size1); // Создаём буфер для первого файла
+            ByteBuffer buffer2 = ByteBuffer.allocate((int) size2); // Создаём буфер для второго файла
+            Future<Integer> read1 = input1.read(buffer1, 0); // Запускаем чтение первого файла
+            Future<Integer> read2 = input2.read(buffer2, 0); // Запускаем чтение второго файла
+            read1.get(); // Ждём завершения чтения первого файла
+            read2.get(); // Ждём завершения чтения второго файла
+            buffer1.flip(); // Переключаем первый буфер на чтение данных
+            buffer2.flip(); // Переключаем второй буфер на чтение данных
+            Future<Integer> write1 = output1.write(buffer1, 0); // Запускаем запись первой копии
+            Future<Integer> write2 = output2.write(buffer2, 0); // Запускаем запись второй копии
+            write1.get(); // Ждём завершения записи первой копии
+            write2.get(); // Ждём завершения записи второй копии
+        }
+    }
+    public static void main(String[] args) throws Exception { // Здесь начинается выполнение программы
+        Path source1 = Paths.get("file1.txt"); // Задаём путь к первому исходному файлу
+        Path source2 = Paths.get("file2.txt"); // Задаём путь ко второму исходному файлу
+        createFile(source1, 200_000); // Создаём первый файл с 200 000 строк
+        createFile(source2, 200_000); // Создаём второй файл с 200 000 строк
+        long start = System.nanoTime(); // Запоминаем время начала синхронного копирования
+        copySync(source1, Paths.get("sync_copy1.txt")); // Последовательно копируем первый файл
+        copySync(source2, Paths.get("sync_copy2.txt")); // Затем копируем второй файл
+        long syncTime = (System.nanoTime() - start) / 1000; // Считаем время в микросекундах
+        System.out.println("Синхронное копирование: " + syncTime + " мкс"); // Показываем время синхронного копирования
+        start = System.nanoTime(); // Запоминаем время начала асинхронного копирования
+        copyAsync( // Запускаем асинхронное копирование
+                source1, Paths.get("async_copy1.txt"), // Копируем первый файл
+                source2, Paths.get("async_copy2.txt") // Копируем второй файл
+        );
+        long asyncTime = (System.nanoTime() - start) / 1000; // Считаем время в микросекундах
+        System.out.println("Асинхронное копирование: " + asyncTime + " мкс"); // Показываем время асинхронного копирования
+    }
+}
