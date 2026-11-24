@@ -1,0 +1,213 @@
+import java.io.IOException; // Нужен для обработки ошибок ввода-вывода
+import java.nio.charset.StandardCharsets; // Задаёт кодировку текста
+import java.nio.file.Files; // Помогает читать и записывать файлы
+import java.nio.file.Path; // Представляет путь к файлу или папке
+import java.nio.file.InvalidPathException; // Ошибка неправильного пути
+import java.util.ArrayList; // Список, который можно менять
+import java.util.LinkedHashMap; // Таблица пар с сохранением порядка
+import java.util.LinkedHashSet; // Множество без повторов с сохранением порядка
+import java.util.List; // Тип списка
+import java.util.Map; // Тип таблицы пар ключ-значение
+import java.util.Scanner; // Читает ввод с клавиатуры
+import java.util.Set; // Тип множества
+import java.util.regex.Matcher; // Находит совпадения с регулярным выражением
+import java.util.regex.Pattern; // Создаёт регулярное выражение
+public class Main { // Главный класс программы
+    private static final String ABC = // Буквы для новых коротких имён
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private static final Set<String> WORDS = Set.of( // Слова Java, которые нельзя переименовывать
+            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue", "default",
+            "do", "double", "else", "enum", "extends", "final", "finally", "float", "for", "if", "implements", "import", "instanceof",
+            "int", "interface", "long", "native", "new", "package", "private", "protected", "public", "return", "short", "static",
+            "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile", "while",
+            "true", "false", "null", "var", "record", "sealed", "permits", "yield"
+    );
+    public static void main(String[] args) { // Начало программы
+        try (Scanner in = new Scanner(System.in)) { // Готовим чтение с клавиатуры
+            System.out.print("Введите путь к директории: "); // Просим указать папку
+            Path dir = Path.of(in.nextLine().trim()); // Читаем путь и убираем пробелы по краям
+            if (!Files.isDirectory(dir)) { // Проверяем, существует ли папка
+                System.out.println("Такой директории нет."); // Сообщаем об ошибке
+                return; // Завершаем программу
+            }
+            List<Path> files; // Здесь будут пути к Java-файлам
+            try (var list = Files.list(dir)) { // Получаем список содержимого папки
+                files = list // Начинаем обработку списка
+                        .filter(Files::isRegularFile) // Оставляем только обычные файлы
+                        .filter(p -> p.toString().endsWith(".java")) // Оставляем файлы с расширением .java
+                        .toList(); // Собираем найденные файлы в список
+            }
+            if (files.isEmpty()) { // Проверяем, нашлись ли Java-файлы
+                System.out.println("В директории нет файлов .java."); // Сообщаем, что файлов нет
+                return; // Завершаем программу
+            }
+            Path out = dir.resolve("obfuscated"); // Создаём путь к папке для результата
+            Files.createDirectories(out); // Создаём папку, если её ещё нет
+            for (Path file : files) { // Перебираем каждый найденный файл
+                run(file, out); // Обрабатываем файл
+            }
+            System.out.println("Готово. Результат находится в: " + out); // Показываем папку с результатом
+        } catch (InvalidPathException e) { // Ловим ошибку неправильного пути
+            System.out.println("Некорректный путь."); // Выводим сообщение об ошибке
+        } catch (IOException e) { // Ловим ошибки чтения и записи файлов
+            System.out.println("Ошибка при обработке файлов: " + e.getMessage()); // Показываем причину ошибки
+        }
+    }
+    private static void run(Path file, Path out) throws IOException { // Обрабатывает один файл
+        String text = Files.readString(file, StandardCharsets.UTF_8); // Читает файл в текст
+        text = noComments(text); // Удаляет комментарии из текста
+        Matcher m = Pattern.compile("\\b(class|interface|enum)\\s+([A-Za-z_$][A-Za-z0-9_$]*)"// Создаёт поиск объявления класса, интерфейса или перечисления
+        ).matcher(text); // Ищет подходящее объявление в тексте
+        String oldName = null; // Здесь будет исходное имя класса
+        if (m.find()) { // Проверяем, найдено ли объявление
+            oldName = m.group(2); // Берём имя класса из найденного текста
+        }
+        Set<String> ids = getIds(text); // Находим имена в коде
+        ids.removeAll(WORDS); // Убираем из списка специальные слова Java
+        Map<String, String> map = getMap(ids); // Создаём таблицу старых и новых имён
+        String newName = oldName == null ? null : map.get(oldName); // Получаем новое имя класса
+        text = replace(text, map); // Заменяем имена в коде
+        text = compact(text); // Убираем лишние пробелы и переносы
+        String outName = newName == null // Проверяем, нашли ли новое имя класса
+                ? file.getFileName().toString() // Если нет — оставляем прежнее имя файла
+                : newName + ".java"; // Если да — используем новое имя класса
+        Path result = out.resolve(outName); // Создаём путь к выходному файлу
+        Files.writeString(result, text, StandardCharsets.UTF_8); // Записываем обработанный текст
+        System.out.println(file.getFileName() + " -> " + outName); // Показываем, как изменилось имя файла
+    }
+    private static Set<String> getIds(String text) { // Находит слова, похожие на имена в коде
+        Set<String> ids = new LinkedHashSet<>(); // Создаёт множество для найденных имён
+        Matcher m = Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*").matcher(text); // Ищет слова формата Java
+        while (m.find()) { // Повторяет, пока находятся совпадения
+            String word = m.group(); // Берёт очередное найденное слово
+            if (!WORDS.contains(word)) { // Проверяет, что это не специальное слово Java
+                ids.add(word); // Добавляет слово в множество
+            }
+        }
+        return ids; // Возвращает найденные имена
+    }
+    private static Map<String, String> getMap(Set<String> ids) { // Создаёт пары старых и новых имён
+        Map<String, String> map = new LinkedHashMap<>(); // Создаёт таблицу замен
+        List<String> list = new ArrayList<>(ids); // Переносит имена в список
+        int len = list.size() <= ABC.length() ? 1 : 2; // Выбирает длину новых имён: один или два символа
+        for (int i = 0; i < list.size(); i++) { // Перебирает все найденные имена
+            map.put(list.get(i), getName(i, len)); // Записывает старое имя и новое имя
+        }
+        return map; // Возвращает таблицу замен
+    }
+    private static String getName(int n, int len) { // Создаёт короткое имя по его номеру
+        if (len == 1) { // Проверяет, достаточно ли одного символа
+            return String.valueOf(ABC.charAt(n)); // Возвращает одну букву
+        }
+        int a = n / ABC.length(); // Вычисляет номер первой буквы
+        int b = n % ABC.length(); // Вычисляет номер второй буквы
+        return "" + ABC.charAt(a) + ABC.charAt(b); // Возвращает имя из двух букв
+    }
+    private static String noComments(String text) { // Удаляет комментарии из текста
+        StringBuilder out = new StringBuilder(); // Создаёт место для результата
+        int i = 0; // Задаёт текущую позицию в тексте
+        while (i < text.length()) { // Идёт по тексту до конца
+            char c = text.charAt(i); // Берёт символ на текущей позиции
+            if (c == '"' || c == '\'') { // Проверяет, начинается ли строка или символ в кавычках
+                i = copyQuote(text, i, c, out); // Копирует содержимое кавычек без изменений
+            } else if (text.startsWith("//", i)) { // Проверяет начало комментария в одну строку
+                i += 2; // Пропускает два символа //
+                while (i < text.length() // Проверяет, что текст ещё не закончился
+                        && text.charAt(i) != '\n' // Ищет конец строки
+                        && text.charAt(i) != '\r') { // Учитывает другой символ конца строки
+                    i++; // Переходит к следующему символу
+                }
+                out.append(' '); // Заменяет комментарий пробелом
+            } else if (text.startsWith("/*", i)) { // Проверяет начало многострочного комментария
+                i += 2; // Пропускает символы /*
+                while (i < text.length() && !text.startsWith("*/", i)) { // Ищет конец комментария
+                    i++; // Переходит к следующему символу
+                }
+                if (i < text.length()) { // Проверяет, найден ли конец текста
+                    i += 2; // Пропускает символы */
+                }
+                out.append(' '); // Заменяет комментарий пробелом
+            } else { // Если это не кавычки и не комментарий
+                out.append(c); // Копирует символ в результат
+                i++; // Переходит к следующему символу
+            }
+        }
+        return out.toString(); // Возвращает текст без комментариев
+    }
+    private static int copyQuote( // Копирует текст в кавычках
+                                  String text, int start, char quote, StringBuilder out // Получает текст, позицию, кавычку и результат
+    ) {
+        out.append(quote); // Добавляет открывающую кавычку
+        int i = start + 1; // Начинает чтение после кавычки
+        boolean escape = false; // Помнит, был ли символ обратного слеша
+        while (i < text.length()) { // Читает символы до конца текста
+            char c = text.charAt(i); // Берёт текущий символ
+            out.append(c); // Копирует его в результат
+            i++; // Переходит дальше
+            if (escape) { // Проверяет, был ли предыдущий символ обратным слешем
+                escape = false; // Сбрасывает отметку экранирования
+            } else if (c == '\\') { // Проверяет обратный слеш
+                escape = true; // Следующий символ будет обработан особым образом
+            } else if (c == quote) { // Проверяет закрывающую кавычку
+                break; // Заканчивает копирование кавычек
+            }
+        }
+        return i; // Возвращает позицию после кавычек
+    }
+    private static String replace(String text, Map<String, String> map) { // Заменяет имена в тексте
+        StringBuilder out = new StringBuilder(); // Создаёт место для изменённого кода
+        int i = 0; // Задаёт текущую позицию
+        while (i < text.length()) { // Идёт по тексту до конца
+            char c = text.charAt(i); // Берёт текущий символ
+            if (c == '"' || c == '\'') { // Проверяет, начинается ли текст в кавычках
+                i = copyQuote(text, i, c, out); // Копирует кавычки, не меняя их содержимое
+            } else if (Character.isJavaIdentifierStart(c)) { // Проверяет, может ли символ начать имя Java
+                int start = i++; // Запоминает начало имени и переходит дальше
+                while (i < text.length() // Проверяет, что текст не закончился
+                        && Character.isJavaIdentifierPart(text.charAt(i))) { // Проверяет символ имени
+                    i++; // Продолжает читать имя
+                }
+                String word = text.substring(start, i); // Получает найденное имя
+                out.append(map.getOrDefault(word, word)); // Заменяет имя, если оно есть в таблице
+            } else { // Если символ не является частью имени
+                out.append(c); // Копирует его без изменений
+                i++; // Переходит к следующему символу
+            }
+        }
+        return out.toString(); // Возвращает текст с новыми именами
+    }
+    private static String compact(String text) { // Убирает лишние пробелы и переносы
+        StringBuilder out = new StringBuilder(); // Создаёт место для результата
+        boolean space = false; // Запоминает, встретился ли пробел
+        int i = 0; // Задаёт текущую позицию
+        while (i < text.length()) { // Идёт по тексту до конца
+            char c = text.charAt(i); // Берёт текущий символ
+            if (c == '"' || c == '\'') { // Проверяет, начинается ли текст в кавычках
+                if (space && needsSpace(out, c)) { // Проверяет, нужен ли пробел перед кавычкой
+                    out.append(' '); // Добавляет нужный пробел
+                }
+                space = false; // Сбрасывает отметку о пробеле
+                i = copyQuote(text, i, c, out); // Копирует кавычки без изменений
+            } else if (Character.isWhitespace(c)) { // Проверяет, является ли символ пробелом или переносом
+                space = true; // Запоминает, что был пробел
+                i++; // Пропускает пробельный символ
+            } else { // Если символ не пробельный
+                if (space && needsSpace(out, c)) { // Проверяет, нужен ли пробел перед символом
+                    out.append(' '); // Добавляет пробел, чтобы слова не слились
+                }
+                space = false; // Сбрасывает отметку о пробеле
+                out.append(c); // Добавляет символ в результат
+                i++; // Переходит дальше
+            }
+        }
+        return out.toString(); // Возвращает текст без лишних пробелов
+    }
+    private static boolean needsSpace(StringBuilder out, char next) { // Проверяет, нужен ли пробел
+        if (out.length() == 0) { // Проверяет, пустой ли результат
+            return false; // В начале пробел не нужен
+        }
+        char prev = out.charAt(out.length() - 1); // Берёт последний добавленный символ
+        return Character.isJavaIdentifierPart(prev) // Проверяет, является ли предыдущий символ частью имени
+                && Character.isJavaIdentifierPart(next); // Проверяет, является ли следующий символ частью имени
+    }
+}
