@@ -1,1 +1,68 @@
-
+import java.io.IOException; // Для обработки ошибок чтения файла
+import java.io.InputStream; // Для чтения байтов файла
+import java.nio.file.Files; // Для открытия файла
+import java.nio.file.Path; // Для хранения пути к файлу
+import java.util.LinkedHashMap; // Для списка типов файлов
+import java.util.Map; // Для работы со списком типов
+import java.util.Scanner;
+import java.util.zip.ZipException; // Для ошибки, если файл не ZIP
+import java.util.zip.ZipFile; // Для проверки DOCX-файла
+public class Main {
+    private static final Map<String, byte[]> types = new LinkedHashMap<>(); // Здесь хранятся типы и их первые байты
+    static { // Заполняем список сигнатур файлов
+        types.put("png", new byte[]{ // Сигнатура PNG
+                (byte) 0x89, 0x50, 0x4E, 0x47, // Первые четыре байта PNG
+                0x0D, 0x0A, 0x1A, 0x0A // Остальные байты сигнатуры PNG
+        });
+        types.put("gif", new byte[]{0x47, 0x49, 0x46}); // Сигнатура GIF
+        types.put("mp3", new byte[]{0x49, 0x44, 0x33}); // Сигнатура MP3 с меткой ID3
+        types.put("jpg", new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}); // Сигнатура JPG
+    }
+    public static String findType(String path) throws IOException { // Ищем тип файла по его пути
+        try (ZipFile zip = new ZipFile(path)) { // Пробуем открыть файл как ZIP-архив
+            if (zip.getEntry("[Content_Types].xml") != null // Проверяем, есть ли файл с типами содержимого
+                    && zip.getEntry("word/document.xml") != null) { // Проверяем, есть ли документ Word
+                return "docx"; // Если оба файла есть, это DOCX
+            }
+        } catch (ZipException e) { // Сюда попадаем, если файл не является ZIP-архивом
+        }
+        byte[] data; // Здесь будут первые байты файла
+        try (InputStream in = Files.newInputStream(Path.of(path))) { // Открываем файл для чтения
+            data = in.readNBytes(8); // Читаем первые восемь байтов
+        }
+        if (data.length >= 8 // Проверяем, что удалось прочитать минимум восемь байтов
+                && data[4] == 'f' // Проверяем первый символ метки MP4
+                && data[5] == 't' // Проверяем второй символ метки MP4
+                && data[6] == 'y' // Проверяем третий символ метки MP4
+                && data[7] == 'p') { // Проверяем четвёртый символ метки MP4
+            return "mp4"; // Если метка совпала, это MP4
+        }
+        for (Map.Entry<String, byte[]> item : types.entrySet()) { // Перебираем известные типы файлов
+            if (checkStart(data, item.getValue())) { // Сравниваем начало файла с сигнатурой
+                return item.getKey(); // Возвращаем найденный тип
+            }
+        }
+        return "Неизвестный"; // Если совпадений нет, тип не распознан
+    }
+    private static boolean checkStart(byte[] data, byte[] code) { // Сравниваем начало файла с сигнатурой
+        if (data.length < code.length) { // Проверяем, хватает ли байтов для сравнения
+            return false; // Если байтов мало, сигнатура не совпадает
+        }
+        for (int i = 0; i < code.length; i++) { // Перебираем байты сигнатуры
+            if (data[i] != code[i]) { // Сравниваем байты файла и сигнатуры
+                return false; // Если байты разные, сигнатура не совпадает
+            }
+        }
+        return true; // Все байты совпали
+    }
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in); // Создаём объект для ввода текста
+        System.out.print("Введите путь к файлу: "); // Просим пользователя указать путь
+        String path = sc.nextLine(); // Сохраняем введённый путь
+        try { // Начинаем обработку файла
+            System.out.println("Тип файла: " + findType(path)); // Находим и выводим тип файла
+        } catch (IOException e) { // Обрабатываем ошибку чтения файла
+            System.out.println("Не удалось прочитать файл: " + e.getMessage()); // Выводим описание ошибки
+        }
+    }
+}
